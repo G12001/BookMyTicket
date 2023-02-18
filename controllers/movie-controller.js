@@ -2,13 +2,12 @@ import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import Admin from "../models/Admin.js";
 import Movie from "../models/Movie.js";
-import User from "../models/User.js";
 
-export const addMovie = async (req, res, next) => {
+export const addMovie = async (req, res) => {
   const extractedToken = req.headers.authorization.split(" ")[1];
 
   if (!extractedToken && extractedToken?.trim() === "") {
-    res.status(400).json({ message: "Token not found" });
+    return res.status(400).json({ message: "Token not found" });
   }
 
   let adminId;
@@ -16,25 +15,17 @@ export const addMovie = async (req, res, next) => {
   // verify token
   jwt.verify(extractedToken, process.env.JWT_SECRET, (error, data) => {
     if (error) {
-      res.status(500).json({ message: error.message });
+      return res.status(500).json({ message: "Something went wrong" });
     }
     adminId = data.id;
-    return;
   });
 
   // create new movie
   const { title, description, releaseDate, posterUrl, featured, actors } =
     req.body;
 
-  if (
-    !title &&
-    title.trim() === "" &&
-    !description &&
-    description.trim() === "" &&
-    !posterUrl &&
-    posterUrl.trim() === ""
-  ) {
-    res.status(400).json({ message: "Invalid inputs" });
+  if (!title || !description || !posterUrl) {
+    return res.status(400).json({ message: "Please add all fields" });
   }
 
   let movie;
@@ -49,6 +40,10 @@ export const addMovie = async (req, res, next) => {
       posterUrl,
     });
 
+    if (!movie) {
+      return res.status(500).json({ message: "Something went wrong" });
+    }
+
     const session = await mongoose.startSession();
     const adminUser = await Admin.findById(adminId);
     session.startTransaction();
@@ -57,27 +52,19 @@ export const addMovie = async (req, res, next) => {
     await adminUser.save({ session });
     await session.commitTransaction();
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: "Something went wrong" });
   }
 
-  if (!movie) {
-    res.status(500).json({ message: "Unexpected error" });
-  }
-
-  res.status(201).json({ movie });
+  res.status(200).json({ message: "Movie added successfully", movie });
 };
 
-export const getMovies = async (req, res, next) => {
+export const getMovies = async (req, res) => {
   let movies;
 
   try {
     movies = await Movie.find();
   } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-
-  if (!movies) {
-    res.status(500).json({ message: "request failed" });
+    return res.status(500).json({ message: "Something went wrong" });
   }
 
   res.status(200).json({ movies });
@@ -88,13 +75,11 @@ export const getMovie = async (req, res) => {
 
   try {
     movie = await Movie.findById(req.params.id);
+    if (!movie) {
+      return res.status(500).json({ message: "Something went wrong" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: "Something went wrong" });
   }
-
-  if (!movie) {
-    return res.status(404).json({ message: "Not found" });
-  }
-
-  return res.status(200).json({ movie });
+  res.status(200).json({ movie });
 };

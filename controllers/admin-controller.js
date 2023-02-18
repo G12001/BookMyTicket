@@ -5,14 +5,19 @@ import Jwt from "jsonwebtoken";
 export const signUp = async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || email.trim() === "" || !password || password.trim() === "") {
+  if (!email || !password) {
     return res.status(400).json({ message: "Please add all fields" });
   }
 
-  let admin = await Admin.findOne({ email });
+  let admin;
+  try {
+    admin = await Admin.findOne({ email });
+  } catch (error) {
+    return res.status(500).json({ message: "Something went wrong" });
+  }
 
   if (admin) {
-    return res.status(400).json({ message: "Admin already exists" });
+    return res.status(400).json({ message: "User already exists" });
   }
 
   const hashedPassword = bcryptjs.hashSync(password);
@@ -20,21 +25,16 @@ export const signUp = async (req, res) => {
   try {
     admin = new Admin({ email, password: hashedPassword });
     admin = await admin.save();
+    res.status(200).json({ admin });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(400).json({ message: "Invalid user data" });
   }
-
-  if (!admin) {
-    return res.status(500).json({ message: "Unable to create admin" });
-  }
-
-  return res.status(201).json({ admin });
 };
 
 export const login = async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || email.trim() === "" || !password || password.trim() === "") {
+  if (!email || !password) {
     return res.status(400).json({ message: "Please add all fields" });
   }
 
@@ -42,13 +42,12 @@ export const login = async (req, res) => {
   try {
     existingAdmin = await Admin.findOne({ email });
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: "Something went wrong" });
   }
 
   if (!existingAdmin) {
-    return res.status(400).json({ message: "Invalid credentials" });
+    return res.status(400).json({ message: "user not found" });
   }
-
   const isPasswordCorrect = bcryptjs.compareSync(
     password,
     existingAdmin.password
@@ -62,23 +61,7 @@ export const login = async (req, res) => {
     expiresIn: "7d",
   });
 
-  return res.status(200).json({ token, id: existingAdmin._id });
-};
-
-export const getAdmins = async (req, res, next) => {
-  let admins;
-
-  try {
-    admins = await Admin.find();
-  } catch (error) {
-    return res.status(500).json({ message: error.message });
-  }
-
-  if (!admins) {
-    return res.status(500).json({ message: "Unable to get admins" });
-  }
-
-  return res.status(200).json({ admins });
+  res.status(200).json({ token, id: existingAdmin._id });
 };
 
 export const getAdminDtails = async (req, res, next) => {
@@ -87,13 +70,12 @@ export const getAdminDtails = async (req, res, next) => {
 
   try {
     admin = await Admin.findById(id).populate("addedMovies");
+    if (!admin) {
+      return res.status(400).json({ message: "Admin not found" });
+    }
   } catch (error) {
-    return res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: "Something went wrong" });
   }
 
-  if (!admin) {
-    return res.status(500).json({ message: "Unable to get admin" });
-  }
-
-  return res.status(200).json({ admin });
+  res.status(200).json({ admin });
 };
